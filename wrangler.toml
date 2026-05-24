@@ -1,3 +1,7 @@
 name = "drive-pro-worker"
 main = "worker.js"
 compatibility_date = "2024-05-24"
+
+[vars]
+GOOGLE_CLIENT_ID = "1051411859059-ejo6a7g8aee7e9i45h569a66otg8ru9j.apps.googleusercontent.com"
+GOOGLE_REDIRECT_URI = "https://smti.uk/drive-pro/api/auth-callback"
