@@ -1,6 +1,7 @@
 import { getAuthUrl, exchangeCode, refreshToken, getUserInfo } from './auth.js';
 import { listFolder, copyFileToDrivePro, getFileDetails } from './drive.js';
 import { jsonResponse, errorResponse, handleCors } from './utils.js';
+import { logAction, isUserBlocked } from './db.js'; // ייבוא מסד הנתונים
 
 export default {
   async fetch(request, env, ctx) {
@@ -19,6 +20,24 @@ export default {
         const token = authHeader ? authHeader.replace('Bearer ', '').trim() : null;
         if (!env.GOOGLE_CLIENT_SECRET) return new Response("הסוד חסר! קלאודפלייר לא מעביר אותו", { status: 500 });
 
+        // --- בדיקת חסימות וזיהוי משתמש ללוגים ---
+        let userEmail = 'unknown';
+        if (token) {
+           try {
+             const userInfo = await getUserInfo(token);
+             userEmail = userInfo.email || 'unknown';
+             
+             // אם המשתמש מופיע בטבלת החסומים, אנחנו עוצרים אותו מיד
+             if (await isUserBlocked(env.DB, userEmail)) {
+                 ctx.waitUntil(logAction(env.DB, userEmail, 'BLOCKED_ACCESS', `ניסיון גישה חסום לנתיב: ${apiPath}`));
+                 return errorResponse('המשתמש שלך נחסם מגישה למערכת.', 403);
+             }
+           } catch (e) {
+             console.error("שגיאה באימות פרטי משתמש");
+           }
+        }
+
+        // --- ניתוב הבקשות ---
         if ((apiPath === '/' || apiPath === '') && request.method === 'GET') {
           return new Response('Drive Pro API Online', { status: 200 });
         }
@@ -43,37 +62,42 @@ export default {
           return jsonResponse(tokens);
         }
 
-        // נתיב חדש: מחזיר את פרטי חשבון הגוגל של המשתמש (שם, אימייל)
         if (apiPath === '/me' && request.method === 'GET') {
           if (!token) throw new Error('חסר טוקן התחברות');
           const result = await getUserInfo(token);
           return jsonResponse(result);
         }
 
-        // נתיב חדש: בדיקת קובץ לפני ביצוע פעולה וקבלת כל הפרטים שלו מקישור דרייב
         if (apiPath === '/file-info' && request.method === 'POST') {
           const body = await request.json();
           if (!body.linkOrId) throw new Error('חסר קישור דרייב (linkOrId)');
           if (!token) throw new Error('חסר טוקן התחברות');
+          
           const result = await getFileDetails(body.linkOrId, token);
+          ctx.waitUntil(logAction(env.DB, userEmail, 'FILE_INFO', `קרא פרטים של קובץ/תיקייה: ${body.linkOrId}`));
+          
           return jsonResponse(result);
         }
 
-        // עכשיו גם copy-file יכול לקבל קישור מלא ולא רק מזהה
         if (apiPath === '/copy-file' && request.method === 'POST') {
           const body = await request.json();
           if (!body.fileId) throw new Error('חסר קישור או מזהה קובץ (fileId)');
           if (!token) throw new Error('חסר טוקן התחברות');
+          
           const result = await copyFileToDrivePro(body.fileId, token, body.targetFolderName);
+          ctx.waitUntil(logAction(env.DB, userEmail, 'COPY_FILE', `העתיק את קובץ ${body.fileId} לתיקיית ${body.targetFolderName || 'הראשית'}`));
+          
           return jsonResponse(result);
         }
 
-        // עכשיו גם list-folder יכול לקבל קישור מלא ולא רק מזהה
         if (apiPath === '/list-folder' && request.method === 'POST') {
           const body = await request.json();
           if (!body.folderId) throw new Error('חסר קישור או מזהה תיקייה (folderId)');
           if (!token) throw new Error('חסר טוקן התחברות');
+          
           const result = await listFolder(body.folderId, token);
+          ctx.waitUntil(logAction(env.DB, userEmail, 'LIST_FOLDER', `סרק את תוכן תיקייה: ${body.folderId}`));
+          
           return jsonResponse(result);
         }
       }
