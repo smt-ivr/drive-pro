@@ -17,7 +17,7 @@ export async function exchangeCode(code, env) {
   });
 
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error_description || 'שגיאה בקבלת טוקן');
+  if (!response.ok) throw new Error(data.error_description || 'שגיאה בקבלת הטוקן');
   return data;
 }
 
