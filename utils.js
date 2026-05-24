@@ -1,50 +1,53 @@
-export function getAuthUrl(clientId, redirectUri) {
-  // הוספנו את userinfo.profile כדי לקבל גם את השם של המשתמש
-  const scopes = encodeURIComponent('https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile');
-  return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}&access_type=offline&prompt=consent`;
+export function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status: status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+    }
+  });
 }
 
-export async function exchangeCode(code, env) {
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code: code,
-      client_id: env.GOOGLE_CLIENT_ID,
-      client_secret: env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: env.GOOGLE_REDIRECT_URI,
-      grant_type: 'authorization_code'
-    })
+export function errorResponse(message, status = 500) {
+  return new Response(JSON.stringify({ error: message }), {
+    status: status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+    }
   });
-
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error_description || 'שגיאה בקבלת הטוקן');
-  return data;
 }
 
-export async function refreshToken(refreshToken, env) {
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      refresh_token: refreshToken,
-      client_id: env.GOOGLE_CLIENT_ID,
-      client_secret: env.GOOGLE_CLIENT_SECRET,
-      grant_type: 'refresh_token'
-    })
+export function handleCors() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    }
   });
-
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error_description || 'שגיאה בחידוש טוקן');
-  return data;
 }
 
-// פונקציה חדשה לקבלת פרטי המשתמש (שם, תמונה, מייל)
-export async function getUserInfo(token) {
-  const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || 'שגיאה בקבלת פרטי חשבון הגוגל');
-  return data;
+export function generateUserKey() {
+  return `user_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+}
+
+// פונקציה חדשה: מחלצת מזהה קובץ מתוך קישור או מחזירה את המזהה אם זה כבר ID
+export function extractDriveId(urlOrId) {
+  if (!urlOrId) return null;
+  // אם זה רק מזהה ללא סלאשים
+  if (!urlOrId.includes('/')) return urlOrId;
+  
+  const patterns = [
+    /\/d\/([a-zA-Z0-9_-]+)/,       // קישור רגיל לקובץ
+    /\/folders\/([a-zA-Z0-9_-]+)/, // קישור לתיקייה
+    /id=([a-zA-Z0-9_-]+)/          // קישורים ישנים
+  ];
+  
+  for (const pattern of patterns) {
+    const match = urlOrId.match(pattern);
+    if (match && match[1]) return match[1];
+  }
+  return null;
 }
