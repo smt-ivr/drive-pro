@@ -20,6 +20,7 @@ export default {
         
         const authHeader = request.headers.get('Authorization');
         const token = authHeader ? authHeader.replace('Bearer ', '').trim() : null;
+        if (!env.GOOGLE_CLIENT_SECRET) return new Response("הסוד חסר! קלאודפלייר לא מעביר אותו", { status: 500 });
 
         // וידוא חיבוריות
         if ((apiPath === '/' || apiPath === '') && request.method === 'GET') {
