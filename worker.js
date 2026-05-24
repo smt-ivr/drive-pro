@@ -36,7 +36,7 @@ export default {
           const code = url.searchParams.get('code');
           if (!code) throw new Error('חסר קוד אימות');
           const tokens = await exchangeCode(code, env);
-          const html = `<!DOCTYPE html><html><body><script>if(window.opener){window.opener.postMessage({type:'AUTH_SUCCESS',tokens:${JSON.stringify(tokens)}},'*');}window.close();</script><p>מתחבר...</p></body></html>`;
+          const html = `<!DOCTYPE html><html><body><script>if(window.opener){window.opener.postMessage({type:'AUTH_SUCCESS',tokens:${JSON.stringify(tokens)}},'*');}window.close();</script><p>החיבור הצליח</p></body></html>`;
           return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         }
 
