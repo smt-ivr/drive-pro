@@ -1,6 +1,5 @@
-import { generateUserKey } from './utils.js';
+import { generateUserKey, extractDriveId } from './utils.js';
 
-// פונקציה חכמה שמוצאת או יוצרת תיקייה (וגם תת-תיקייה)
 async function getOrCreateFolder(token, folderName, parentId = null) {
   const safeName = folderName.replace(/'/g, "\\'");
   let query = `name = '${safeName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
@@ -8,7 +7,7 @@ async function getOrCreateFolder(token, folderName, parentId = null) {
   if (parentId) {
       query += ` and '${parentId}' in parents`;
   } else {
-      query += ` and 'root' in parents`; // או drive אם זה root אמיתי
+      query += ` and 'root' in parents`;
   }
 
   const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)&spaces=drive`, {
@@ -33,7 +32,29 @@ async function getOrCreateFolder(token, folderName, parentId = null) {
   return createData.id;
 }
 
-export async function copyFileToDrivePro(fileId, token, targetFolderName = null) {
+// פונקציה חדשה: קוראת את כל המידע האפשרי על הקישור לפני ביצוע פעולה
+export async function getFileDetails(linkOrId, token) {
+  const fileId = extractDriveId(linkOrId);
+  if (!fileId) throw new Error('הקישור שהוזן אינו תקין ולא ניתן לחלץ ממנו את מזהה הקובץ.');
+
+  const quotaUser = generateUserKey();
+  // מבקשים לקבל את ה-ID, השם, הסוג, הגודל בבתים, יכולות פעולה, סטטוס אשפה, פרטי קיצור דרך ובעלים
+  const fields = 'id,name,mimeType,size,capabilities,trashed,shortcutDetails,owners';
+  
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=${fields}&quotaUser=${quotaUser}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  
+  const data = await res.json();
+  if (!res.ok) {
+      throw new Error(data.error ? data.error.message : 'שגיאה: הקובץ אינו קיים, או שאין לך הרשאות לגשת אליו.');
+  }
+  
+  return data;
+}
+
+export async function copyFileToDrivePro(fileIdOrUrl, token, targetFolderName = null) {
+  const fileId = extractDriveId(fileIdOrUrl);
   const quotaUser = generateUserKey();
   
   const infoRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,shortcutDetails&quotaUser=${quotaUser}`, {
@@ -56,11 +77,9 @@ export async function copyFileToDrivePro(fileId, token, targetFolderName = null)
     if (infoData.shortcutDetails?.targetId) targetIdToCopy = infoData.shortcutDetails.targetId;
   }
 
-  // שלב 1: תיקיית האב "Drive Pro"
   const driveProId = await getOrCreateFolder(token, 'Drive Pro');
   let finalFolderId = driveProId;
 
-  // שלב 2: אם המשתמש ביקש תת-תיקייה, ניצור אותה בתוך Drive Pro
   if (targetFolderName && targetFolderName.trim() !== '') {
       finalFolderId = await getOrCreateFolder(token, targetFolderName.trim(), driveProId);
   }
@@ -82,10 +101,10 @@ export async function copyFileToDrivePro(fileId, token, targetFolderName = null)
   };
 }
 
-export async function listFolder(folderId, token) {
+export async function listFolder(folderIdOrUrl, token) {
+  const folderId = extractDriveId(folderIdOrUrl);
   const quotaUser = generateUserKey();
   
-  // קודם כל שולפים את שם התיקייה כדי להציע אותו למשתמש
   const infoRes = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,name&quotaUser=${quotaUser}`, {
     headers: { 'Authorization': `Bearer ${token}` }
   });
@@ -96,7 +115,6 @@ export async function listFolder(folderId, token) {
     if (infoData.name) folderName = infoData.name;
   }
 
-  // שולפים את הקבצים (עד 1000 קבצים בתיקייה)
   const query = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
   const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType,webViewLink)&pageSize=1000&quotaUser=${quotaUser}`, {
     headers: { 'Authorization': `Bearer ${token}` }
@@ -105,6 +123,5 @@ export async function listFolder(folderId, token) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error ? data.error.message : 'שגיאה בסריקת תיקייה');
 
-  // מחזירים לממשק גם את הקבצים וגם את שם התיקייה
   return { files: data.files || [], folderName: folderName };
 }
