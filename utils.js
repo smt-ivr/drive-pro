@@ -1,35 +1,50 @@
-export function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status: status,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
-    }
-  });
+export function getAuthUrl(clientId, redirectUri) {
+  // הוספנו את userinfo.profile כדי לקבל גם את השם של המשתמש
+  const scopes = encodeURIComponent('https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile');
+  return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}&access_type=offline&prompt=consent`;
 }
 
-export function errorResponse(message, status = 500) {
-  return new Response(JSON.stringify({ error: message }), {
-    status: status,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
-    }
+export async function exchangeCode(code, env) {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code: code,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: env.GOOGLE_REDIRECT_URI,
+      grant_type: 'authorization_code'
+    })
   });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error_description || 'שגיאה בקבלת הטוקן');
+  return data;
 }
 
-export function handleCors() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    }
+export async function refreshToken(refreshToken, env) {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      refresh_token: refreshToken,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      grant_type: 'refresh_token'
+    })
   });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error_description || 'שגיאה בחידוש טוקן');
+  return data;
 }
 
-// מחולל מזהה אקראי למניעת חסימות Rate Limit של גוגל
-export function generateUserKey() {
-  return `user_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+// פונקציה חדשה לקבלת פרטי המשתמש (שם, תמונה, מייל)
+export async function getUserInfo(token) {
+  const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || 'שגיאה בקבלת פרטי חשבון הגוגל');
+  return data;
 }
