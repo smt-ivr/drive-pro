@@ -1,5 +1,6 @@
 export function getAuthUrl(clientId, redirectUri) {
-  const scopes = encodeURIComponent('https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email');
+  // הוספנו את userinfo.profile כדי לקבל גם את השם של המשתמש
+  const scopes = encodeURIComponent('https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile');
   return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}&access_type=offline&prompt=consent`;
 }
 
@@ -35,5 +36,15 @@ export async function refreshToken(refreshToken, env) {
 
   const data = await response.json();
   if (!response.ok) throw new Error(data.error_description || 'שגיאה בחידוש טוקן');
+  return data;
+}
+
+// פונקציה חדשה לקבלת פרטי המשתמש (שם, תמונה, מייל)
+export async function getUserInfo(token) {
+  const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || 'שגיאה בקבלת פרטי חשבון הגוגל');
   return data;
 }
