@@ -1,0 +1,5 @@
+# Copy to .dev.vars for `npm run dev` (this file is git-ignored once renamed).
+GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+STATE_SECRET=any-long-random-string
+GOOGLE_REDIRECT_URI=http://localhost:8787/drive-pro/api/auth-callback
+ALLOWED_ORIGINS=http://localhost:8788,https://smti.uk

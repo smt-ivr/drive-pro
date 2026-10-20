@@ -1,0 +1,22 @@
+{
+  "name": "drive-pro",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Drive Pro API – copy shared Google Drive files and folders into your own Drive (Cloudflare Worker).",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test test/*.test.js",
+    "check": "wrangler deploy --dry-run --outdir .wrangler/dry-run && npm test",
+    "db:migrate": "wrangler d1 migrations apply drive-pro --remote",
+    "db:migrate:local": "wrangler d1 migrations apply drive-pro --local",
+    "logs": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
